@@ -1,0 +1,4 @@
+GEMINI_API_KEY=replace_me
+MEGA_EMAIL=your-mega-account@example.com
+MEGA_PASSWORD=replace_me
+API_AUTH_SECRET=replace_with_random_secret

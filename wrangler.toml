@@ -1,0 +1,42 @@
+name = "blink-pdf-modifier"
+main = "src/worker.js"
+compatibility_date = "2026-08-24"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[[queues.producers]]
+binding = "PDF_QUEUE"
+queue = "blink-pdf-jobs"
+
+[[queues.consumers]]
+queue = "blink-pdf-jobs"
+max_batch_size = 1
+max_batch_timeout = 5
+max_retries = 4
+max_concurrency = 2
+
+[triggers]
+crons = ["0 * * * *"]
+
+[vars]
+MAX_FILES_PER_BATCH = "20"
+MAX_TOTAL_PAGES = "1000"
+PROCESS_CONCURRENCY = "2"
+CHUNK_SIZE = "20"
+MAX_FILE_SIZE_MB = "500"
+JOB_RETENTION_HOURS = "24"
+MAX_JOB_OUTPUT_MB = "500"
+ALLOWED_ORIGIN = "*"
+MEGA_ROOT_FOLDER = "BLINK-PDF-Modifier"
+DEFAULT_GEMINI_MODEL = "gemini-3.5-flash"
+GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
+
+# Required secrets:
+# GEMINI_API_KEY
+# MEGA_EMAIL
+# MEGA_PASSWORD
+# API_AUTH_SECRET (optional)

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>BLINK PDF Modifier</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="app">
+    <header class="brand">
+      <div class="blink">BLINK</div>
+      <div class="rule"></div><div class="spark">✦</div>
+    </header>
+
+    <section class="hero">
+      <h1>BLINK PDF Modifier</h1>
+      <p>Server-side A4 rebuilding with smart pagination. Your phone only uploads, monitors progress and downloads the finished PDF.</p>
+    </section>
+
+    <section class="card">
+      <h2>1. Upload PDFs</h2>
+      <div id="dropzone" class="dropzone">
+        <strong>Choose PDF files</strong>
+        <span>Up to 20 files / 1000 total pages</span>
+        <input id="files" type="file" accept="application/pdf" multiple>
+      </div>
+      <div id="fileList" class="file-list"></div>
+    </section>
+
+    <section class="card">
+      <h2>2. Format</h2>
+      <div class="grid">
+        <label>Document type
+          <select id="documentMode">
+            <option value="auto">Auto</option>
+            <option value="notes">Notes / Study material</option>
+            <option value="pyq">PYQ / Question bank</option>
+          </select>
+        </label>
+        <label>Note style
+          <select id="formatMode">
+            <option value="normal">Normal</option>
+            <option value="handwritten">Handwritten</option>
+          </select>
+        </label>
+        <label>Gemini model
+          <input id="model" value="gemini-3.5-flash">
+        </label>
+      </div>
+      <label>Rewrite instructions (optional)
+        <textarea id="instructions" placeholder="Preserve source concepts, formulas, examples and diagrams. Keep actual chapter names."></textarea>
+      </label>
+    </section>
+
+    <section class="card">
+      <h2>3. Process</h2>
+      <div class="actions">
+        <button id="generate" class="primary" disabled>Generate PDF</button>
+        <button id="cancel" class="secondary" disabled>Cancel</button>
+      </div>
+      <div id="status" class="status" hidden>
+        <div class="status-row"><span id="statusText">Queued</span><b id="percent">0%</b></div>
+        <div class="bar"><i id="bar"></i></div>
+        <div id="current" class="muted"></div>
+      </div>
+      <pre id="log" class="log" hidden></pre>
+    </section>
+
+    <section id="result" class="card" hidden>
+      <h2>4. Preview & Download</h2>
+      <div class="result-row">
+        <span id="resultInfo"></span>
+        <button id="download" class="primary" disabled>Download PDF</button>
+      </div>
+      <div id="preview" class="preview"></div>
+    </section>
+  </main>
+
+  <script src="./config.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
