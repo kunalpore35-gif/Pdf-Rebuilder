@@ -3,3 +3,6 @@ window.BLINK_CONFIG = {
   API_AUTH_TOKEN: "",
   POLL_MS: 1500
 };
+window.APP_CONFIG = {
+  apiBase: window.location.origin
+};
