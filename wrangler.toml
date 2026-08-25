@@ -23,7 +23,7 @@ max_concurrency = 2
 crons = ["0 * * * *"]
 
 [vars]
-MAX_FILES_PER_BATCH = "20"
+MAX_FILES_PER_BATCH = "5"
 MAX_TOTAL_PAGES = "1000"
 PROCESS_CONCURRENCY = "2"
 CHUNK_SIZE = "20"
