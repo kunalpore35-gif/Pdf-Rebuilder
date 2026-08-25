@@ -37,6 +37,15 @@ async function getRootFolder(env) {
 
 function parts(k) { return String(k).split('/').filter(Boolean); }
 
+// Avoids doubling peak memory: Buffer.from(uint8array) always copies.
+// A chunk PDF or the merged final PDF can be tens of MB, so for those,
+// wrap the existing memory instead of duplicating it.
+function toBuffer(bytes) {
+  if (Buffer.isBuffer(bytes)) return bytes;
+  if (bytes instanceof Uint8Array) return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  return Buffer.from(bytes);
+}
+
 async function parentFor(env, key, create=true) {
   const storage = await getStorage(env);
   let node = await getRootFolder(env);
@@ -91,7 +100,8 @@ export async function putBytes(env,k,bytes,type='application/octet-stream') {
   const name = parts(k).at(-1);
   const existing = parent.children?.find(x => x.name === name && !x.directory);
   if (existing) await existing.delete(true);
-  const file = await parent.upload({name, size: bytes.byteLength || bytes.length, attributes:{n:name, c:type}}, Buffer.from(bytes));
+  const buf = toBuffer(bytes);
+  const file = await parent.upload({name, size: buf.byteLength, attributes:{n:name, c:type}}, buf);
   await file.complete;
   return file;
 }
@@ -166,3 +176,4 @@ export async function getAccountInfo(env) {
   const storage = await getStorage(env);
   return storage.getAccountInfo();
 }
+
