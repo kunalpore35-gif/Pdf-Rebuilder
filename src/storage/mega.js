@@ -1,4 +1,4 @@
-import * as mega from "megajs";
+import mega from "megajs";
 
 let cached = null;
 let rootFolder = null;
