@@ -1,4 +1,4 @@
-import mega from "megajs";
+import { Storage } from "megajs";
 
 let cached = null;
 let rootFolder = null;
@@ -8,7 +8,7 @@ function errText(e) { return e?.message || String(e); }
 async function getStorage(env) {
   if (cached?.status === "ready") return cached;
   if (!env.MEGA_EMAIL || !env.MEGA_PASSWORD) throw new Error("MEGA_EMAIL and MEGA_PASSWORD secrets are required.");
-  const storage = mega({
+  const storage = new Storage({
     email: env.MEGA_EMAIL,
     password: env.MEGA_PASSWORD,
     keepalive: false,
