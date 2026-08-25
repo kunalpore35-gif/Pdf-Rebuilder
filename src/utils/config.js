@@ -6,6 +6,7 @@ export function cfg(env) {
     concurrency: n("PROCESS_CONCURRENCY", 2),
     chunkSize: n("CHUNK_SIZE", 20),
     maxFileBytes: n("MAX_FILE_SIZE_MB", 500) * 1024 * 1024,
+    maxOutputBytes: n("MAX_JOB_OUTPUT_MB", 500) * 1024 * 1024,
     retentionHours: n("JOB_RETENTION_HOURS", 24),
     defaultModel: env.DEFAULT_GEMINI_MODEL || "gemini-3.5-flash",
     geminiBase: env.GEMINI_API_BASE || "https://generativelanguage.googleapis.com/v1beta"
