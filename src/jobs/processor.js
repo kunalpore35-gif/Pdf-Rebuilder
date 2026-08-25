@@ -41,7 +41,7 @@ async function renderChunk(env,job,f,chunkIndex){
   const rendered=await buildBlinkPdf({sections,formatMode:job.formatMode,sourceTitle:f.name});
   const pdfKey=`jobs/${job.jobId}/chunks/${f.fileId}/${String(chunkIndex).padStart(5,"0")}.pdf`;
   await putBytes(env,pdfKey,rendered.bytes,"application/pdf");
-  await checkpoint(env,job,f.fileId,chunkIndex,{startPage:start,endPage:end,sections,pdfKey,pdfPages:rendered.pageCount});
+  await checkpoint(env,job,f.fileId,chunkIndex,{startPage:start,endPage:end,sections,pdfKey,pdfPages:rendered.pageCount,pdfBytes:rendered.bytes.byteLength});
   for(let i=0;i<rendered.previewSvgs.length;i++){
     const globalPreviewPage=(job.outputPages||0)+i+1;
     await putBytes(env,key.preview(job.jobId,globalPreviewPage),rendered.previewSvgs[i],"image/svg+xml; charset=utf-8");
@@ -58,18 +58,34 @@ async function allChunksDone(job){
 }
 
 async function mergeFinal(env,job){
-  const final=await PDFDocument.create();
-  let outputPages=0;
+  const c=cfg(env);
+  // pdf-lib has to hold the whole merged document (and then the whole
+  // serialized output) in memory at once - there is no streaming merge.
+  // So before paying that cost, add up what each chunk already reported
+  // and fail fast with a clear message if the total is not going to fit,
+  // instead of letting the Worker get killed mid-merge.
+  const checkpoints=[];
+  let estimatedBytes=0;
   for(const f of job.files){
     for(let ci=0;ci<f.totalChunks;ci++){
       const cp=await readCheckpoint(env,job,f.fileId,ci);
       if(!cp?.pdfKey) throw new Error(`Missing checkpoint for ${f.name}, chunk ${ci}.`);
-      const bytes=await getBytes(env,cp.pdfKey);
-      const part=await PDFDocument.load(bytes,{ignoreEncryption:false});
-      const pages=await final.copyPages(part,part.getPageIndices());
-      pages.forEach(p=>final.addPage(p));
-      outputPages+=pages.length;
+      estimatedBytes+=Number(cp.pdfBytes||0);
+      checkpoints.push(cp);
     }
+  }
+  if(c.maxOutputBytes && estimatedBytes>c.maxOutputBytes){
+    throw new Error(`Combined output is too large to merge in one pass (~${Math.round(estimatedBytes/1024/1024)}MB, limit ${Math.round(c.maxOutputBytes/1024/1024)}MB). Split this into smaller batches.`);
+  }
+
+  const final=await PDFDocument.create();
+  let outputPages=0;
+  for(const cp of checkpoints){
+    const bytes=await getBytes(env,cp.pdfKey);
+    const part=await PDFDocument.load(bytes,{ignoreEncryption:false});
+    const pages=await final.copyPages(part,part.getPageIndices());
+    pages.forEach(p=>final.addPage(p));
+    outputPages+=pages.length;
   }
   const bytes=await final.save({useObjectStreams:true,addDefaultPage:false});
   const outputKey=key.output(job.jobId);
@@ -131,3 +147,4 @@ export async function retryJob(env,jobId,queue){
   if(job.status==="completed")return job;
   job.status="queued";job.error=null;await saveJob(env,job);await queue.send({jobId});return job;
 }
+  
