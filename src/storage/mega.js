@@ -46,6 +46,30 @@ function toBuffer(bytes) {
   return Buffer.from(bytes);
 }
 
+// MEGA API error -9 (ENOENT) is returned for several unrelated situations,
+// including "the session this isolate cached is no longer valid" - it is
+// NOT actually a wrong-password error, that's just megajs's static text
+// for this code. Cloudflare can run many isolates concurrently (status
+// polling + queue processing), each logging into the same MEGA account;
+// MEGA can invalidate one of those sessions, and without recovery logic
+// every later call in that isolate keeps failing identically forever.
+function isStaleSessionError(e) {
+  const msg = String(e?.message || e || "");
+  return e?.code === -9 || /ENOENT/i.test(msg) || /object.*not found/i.test(msg);
+}
+
+// Runs fn() once; if it fails with a stale-session-shaped error, forces a
+// fresh login (fresh tree too) and retries exactly once before giving up.
+async function withFreshRetry(fn) {
+  try {
+    return await fn();
+  } catch (e) {
+    if (!isStaleSessionError(e)) throw e;
+    invalidateMegaCache();
+    return await fn();
+  }
+}
+
 async function parentFor(env, key, create=true) {
   const storage = await getStorage(env);
   let node = await getRootFolder(env);
@@ -79,34 +103,42 @@ export const key = {
 };
 
 export async function putJson(env,k,value) {
-  const parent = await parentFor(env,k,true);
-  const name = parts(k).at(-1);
-  const existing = parent.children?.find(x => x.name === name && !x.directory);
-  if (existing) await existing.delete(true);
-  const file = await parent.upload({name, size: Buffer.byteLength(JSON.stringify(value)), attributes:{n:name}}, Buffer.from(JSON.stringify(value)));
-  await file.complete;
-  return file;
+  return withFreshRetry(async () => {
+    const parent = await parentFor(env,k,true);
+    const name = parts(k).at(-1);
+    const existing = parent.children?.find(x => x.name === name && !x.directory);
+    if (existing) await existing.delete(true);
+    const file = await parent.upload({name, size: Buffer.byteLength(JSON.stringify(value)), attributes:{n:name}}, Buffer.from(JSON.stringify(value)));
+    await file.complete;
+    return file;
+  });
 }
 
 export async function getJson(env,k) {
-  const node = await findNode(env,k);
-  if (!node || node.directory) return null;
-  const bytes = await node.downloadBuffer({maxConnections:1});
-  return JSON.parse(Buffer.from(bytes).toString('utf8'));
+  return withFreshRetry(async () => {
+    const node = await findNode(env,k);
+    if (!node || node.directory) return null;
+    const bytes = await node.downloadBuffer({maxConnections:1});
+    return JSON.parse(Buffer.from(bytes).toString('utf8'));
+  });
 }
 
 export async function putBytes(env,k,bytes,type='application/octet-stream') {
-  const parent = await parentFor(env,k,true);
-  const name = parts(k).at(-1);
-  const existing = parent.children?.find(x => x.name === name && !x.directory);
-  if (existing) await existing.delete(true);
-  const buf = toBuffer(bytes);
-  const file = await parent.upload({name, size: buf.byteLength, attributes:{n:name, c:type}}, buf);
-  await file.complete;
-  return file;
+  return withFreshRetry(async () => {
+    const parent = await parentFor(env,k,true);
+    const name = parts(k).at(-1);
+    const existing = parent.children?.find(x => x.name === name && !x.directory);
+    if (existing) await existing.delete(true);
+    const buf = toBuffer(bytes);
+    const file = await parent.upload({name, size: buf.byteLength, attributes:{n:name, c:type}}, buf);
+    await file.complete;
+    return file;
+  });
 }
 
 export async function putStream(env,k,stream,size,type='application/octet-stream') {
+  // Not retried: the request body stream can only be read once, so a
+  // failed attempt can't be safely replayed here.
   const parent = await parentFor(env,k,true);
   const name = parts(k).at(-1);
   const existing = parent.children?.find(x => x.name === name && !x.directory);
@@ -129,27 +161,35 @@ export async function putStream(env,k,stream,size,type='application/octet-stream
 }
 
 export async function head(env,k) {
-  const node = await findNode(env,k);
-  if (!node || node.directory) return null;
-  return {size:Number(node.size||0), name:node.name};
+  return withFreshRetry(async () => {
+    const node = await findNode(env,k);
+    if (!node || node.directory) return null;
+    return {size:Number(node.size||0), name:node.name};
+  });
 }
 
 export async function getStream(env,k) {
-  const node = await findNode(env,k);
-  if (!node || node.directory) return null;
-  return node.download({maxConnections:1});
+  return withFreshRetry(async () => {
+    const node = await findNode(env,k);
+    if (!node || node.directory) return null;
+    return node.download({maxConnections:1});
+  });
 }
 
 export async function getBytes(env,k) {
-  const node = await findNode(env,k);
-  if (!node || node.directory) return null;
-  return new Uint8Array(await node.downloadBuffer({maxConnections:1}));
+  return withFreshRetry(async () => {
+    const node = await findNode(env,k);
+    if (!node || node.directory) return null;
+    return new Uint8Array(await node.downloadBuffer({maxConnections:1}));
+  });
 }
 
 export async function deleteIf(env,k) {
   try {
-    const node = await findNode(env,k);
-    if (node) await node.delete(true);
+    await withFreshRetry(async () => {
+      const node = await findNode(env,k);
+      if (node) await node.delete(true);
+    });
   } catch {}
 }
 
@@ -175,5 +215,5 @@ export function nodeToWebStream(nodeStream) {
 export async function getAccountInfo(env) {
   const storage = await getStorage(env);
   return storage.getAccountInfo();
-}
-
+    }
+      
