@@ -84,12 +84,24 @@ async function parentFor(env, key, create=true) {
   return node;
 }
 
-async function findNode(env, key) {
+async function findNode(env, key, _retried=false) {
   const storage = await getStorage(env);
   let node = await getRootFolder(env);
   for (const part of parts(key)) {
     node = node.children?.find(x => x.name === part);
-    if (!node) return null;
+    if (!node) {
+      // This isolate's cached tree may simply be stale relative to a
+      // write another isolate just made (keepalive is off, so there is
+      // no live push of other sessions' changes). Before reporting
+      // "not found", force exactly one fresh login + fresh tree fetch
+      // and check again - but only once, so a genuinely missing node
+      // still returns null instead of relogin-looping.
+      if (!_retried) {
+        invalidateMegaCache();
+        return findNode(env, key, true);
+      }
+      return null;
+    }
   }
   return node;
 }
@@ -215,5 +227,5 @@ export function nodeToWebStream(nodeStream) {
 export async function getAccountInfo(env) {
   const storage = await getStorage(env);
   return storage.getAccountInfo();
-    }
-      
+}
+
